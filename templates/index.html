@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cross-Device Clipboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .input-section {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            margin-bottom: 30px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        #textInput {
+            flex: 1;
+            padding: 15px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        #textInput:focus {
+            border-color: #667eea;
+        }
+
+        #addBtn {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        #addBtn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        #addBtn:active {
+            transform: translateY(0);
+        }
+
+        .items-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .item {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .item-content {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        .item-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .copy-btn {
+            background: #28a745;
+            color: white;
+            flex: 1;
+        }
+
+        .copy-btn:hover {
+            background: #218838;
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(40, 167, 69, 0.3);
+        }
+
+        .delete-btn {
+            background: #dc3545;
+            color: white;
+            flex: 1;
+        }
+
+        .delete-btn:hover {
+            background: #c82333;
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(220, 53, 69, 0.3);
+        }
+
+        .timestamp {
+            font-size: 12px;
+            color: #6c757d;
+            margin-bottom: 10px;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: white;
+            font-size: 18px;
+            margin-top: 50px;
+            opacity: 0.8;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            display: none;
+            animation: slideInRight 0.3s ease-out;
+            z-index: 1000;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+            }
+            to {
+                transform: translateX(0);
+            }
+        }
+
+        .notification.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📋 Cross-Device Clipboard</h1>
+        
+        <div class="input-section">
+            <div class="input-group">
+                <input type="text" id="textInput" placeholder="Enter text to share across devices..." />
+                <button id="addBtn">Add</button>
+            </div>
+        </div>
+
+        <div id="itemsContainer" class="items-container"></div>
+        <div id="emptyState" class="empty-state" style="display: none;">
+            No items yet. Add something above to get started!
+        </div>
+    </div>
+
+    <div id="notification" class="notification"></div>
+
+    <script>
+        const API_URL = '/api/items';
+        let items = [];
+
+        // Load items on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadItems();
+            
+            // Add button click
+            document.getElementById('addBtn').addEventListener('click', addItem);
+            
+            // Enter key in input
+            document.getElementById('textInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    addItem();
+                }
+            });
+            
+            // Auto-refresh every 2 seconds
+            setInterval(() => {
+                loadItems();
+            }, 2000);
+        });
+
+        async function loadItems() {
+            try {
+                const response = await fetch(API_URL);
+                items = await response.json();
+                renderItems();
+            } catch (error) {
+                console.error('Error loading items:', error);
+                showNotification('Error loading items', 'error');
+            }
+        }
+
+        async function addItem() {
+            const input = document.getElementById('textInput');
+            const content = input.value.trim();
+            
+            if (!content) {
+                showNotification('Please enter some text', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ content }),
+                });
+
+                if (response.ok) {
+                    input.value = '';
+                    loadItems();
+                    showNotification('Item added successfully!');
+                }
+            } catch (error) {
+                console.error('Error adding item:', error);
+                showNotification('Error adding item', 'error');
+            }
+        }
+
+        async function deleteItem(itemId) {
+            try {
+                const response = await fetch(`${API_URL}/${itemId}`, {
+                    method: 'DELETE',
+                });
+
+                if (response.ok) {
+                    loadItems();
+                    showNotification('Item deleted!');
+                }
+            } catch (error) {
+                console.error('Error deleting item:', error);
+                showNotification('Error deleting item', 'error');
+            }
+        }
+
+        async function copyItem(itemId) {
+            try {
+                const item = items.find(i => i.id === itemId);
+                if (!item) return;
+                
+                // Try modern Clipboard API first
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(item.content);
+                    showNotification('Copied to clipboard!');
+                } else {
+                    // Fallback for non-HTTPS contexts
+                    const textArea = document.createElement('textarea');
+                    textArea.value = item.content;
+                    textArea.style.position = 'fixed';
+                    textArea.style.left = '-999999px';
+                    textArea.style.top = '-999999px';
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    
+                    try {
+                        document.execCommand('copy');
+                        showNotification('Copied to clipboard!');
+                    } catch (err) {
+                        console.error('Fallback copy failed:', err);
+                        showNotification('Error copying to clipboard', 'error');
+                    } finally {
+                        document.body.removeChild(textArea);
+                    }
+                }
+            } catch (error) {
+                console.error('Error copying:', error);
+                showNotification('Error copying to clipboard', 'error');
+            }
+        }
+
+        function renderItems() {
+            const container = document.getElementById('itemsContainer');
+            const emptyState = document.getElementById('emptyState');
+
+            if (items.length === 0) {
+                container.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+            container.innerHTML = items.map(item => `
+                <div class="item">
+                    <div class="timestamp">${formatTimestamp(item.timestamp)}</div>
+                    <div class="item-content">${escapeHtml(item.content)}</div>
+                    <div class="item-actions">
+                        <button class="btn copy-btn" data-item-id="${item.id}">
+                            📋 Copy
+                        </button>
+                        <button class="btn delete-btn" data-item-id="${item.id}">
+                            🗑️ Delete
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Attach event listeners to buttons
+            container.querySelectorAll('.copy-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const itemId = parseFloat(btn.dataset.itemId);
+                    copyItem(itemId);
+                });
+            });
+            
+            container.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const itemId = parseFloat(btn.dataset.itemId);
+                    deleteItem(itemId);
+                });
+            });
+        }
+
+        function formatTimestamp(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleString();
+        }
+
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.style.background = type === 'error' ? '#dc3545' : '#28a745';
+            notification.classList.add('show');
+
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
