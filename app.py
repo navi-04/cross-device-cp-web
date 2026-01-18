@@ -35,6 +35,8 @@ def get_items():
 def add_item():
     """Add new clipboard item"""
     content = request.json.get('content', '').strip()
+    item_type = request.json.get('type', 'text')
+    
     if not content:
         return jsonify({'error': 'Content cannot be empty'}), 400
     
@@ -42,6 +44,7 @@ def add_item():
     new_item = {
         'id': datetime.now().timestamp(),
         'content': content,
+        'type': item_type,
         'timestamp': datetime.now().isoformat()
     }
     data.insert(0, new_item)  # Add to beginning
